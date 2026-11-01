@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  RECEPTIONIST
+  RADIOLOGIST
+  TECHNICIAN
+  PHARMACIST
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum Modality {
+  XRAY
+  CT
+  MRI
+  ULTRASOUND
+  MAMMOGRAPHY
+  PET_CT
+  OTHER
+}
+
+enum OrderPriority {
+  ROUTINE
+  URGENT
+  STAT
+}
+
+enum OrderStatus {
+  ORDERED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ReportStatus {
+  DRAFT
+  REVIEWED
+  FINALIZED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(RECEPTIONIST)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  appointments Appointment[]     @relation("AppointmentCreator")
+  reports      RadiologyReport[] @relation("ReportAuthor")
+  auditEvents  AuditEvent[]      @relation("AuditActor")
+
+  sentInvitations StaffInvitation[] @relation("StaffInvitationCreator")
+}
+
+model StaffInvitation {
+  id          String           @id @default(uuid())
+  name        String
+  email       String
+  role        UserRole
+  tokenHash   String           @unique
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  invitedById String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  invitedBy User @relation("StaffInvitationCreator", fields: [invitedById], references: [id])
+
+  @@index([email, status])
+  @@index([status, expiresAt])
+}
+
+model Patient {
+  id            String   @id @default(uuid())
+  patientNumber String   @unique
+  firstName     String
+  lastName      String
+  dateOfBirth   DateTime
+  sex           String?
+  phone         String?
+  email         String?
+  address       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  appointments Appointment[]
+  orders       RadiologyOrder[]
+}
+
+model Appointment {
+  id          String            @id @default(uuid())
+  patientId   String
+  createdById String
+  scheduledAt DateTime
+  modality    Modality
+  procedure   String
+  location    String?
+  status      AppointmentStatus @default(SCHEDULED)
+  notes       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  patient   Patient @relation(fields: [patientId], references: [id])
+  createdBy User    @relation("AppointmentCreator", fields: [createdById], references: [id])
+  orders    RadiologyOrder[]
+
+  @@index([scheduledAt, status])
+  @@index([patientId])
+}
+
+model RadiologyOrder {
+  id            String        @id @default(uuid())
+  accessionNo   String        @unique
+  patientId     String
+  appointmentId String?
+  modality      Modality
+  procedure     String
+  clinicalNote  String?
+  priority      OrderPriority @default(ROUTINE)
+  status        OrderStatus   @default(ORDERED)
+  orderedAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  patient     Patient        @relation(fields: [patientId], references: [id])
+  appointment Appointment?   @relation(fields: [appointmentId], references: [id])
+  report      RadiologyReport?
+  studyLink   StudyLink?
+
+  @@index([status, priority])
+  @@index([patientId])
+}
+
+model RadiologyReport {
+  id          String       @id @default(uuid())
+  orderId     String       @unique
+  authorId    String
+  findings    String       @default("")
+  impression  String       @default("")
+  status      ReportStatus @default(DRAFT)
+  finalizedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  order  RadiologyOrder @relation(fields: [orderId], references: [id])
+  author User           @relation("ReportAuthor", fields: [authorId], references: [id])
+}
+
+model StudyLink {
+  id               String   @id @default(uuid())
+  orderId          String   @unique
+  studyInstanceUid String?  @unique
+  pacsStudyId      String?
+  viewerUrl        String?
+  verified         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  order RadiologyOrder @relation(fields: [orderId], references: [id])
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

@@ -1,0 +1,41 @@
+﻿# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment files and secrets
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!.env.*.example
+!**/.env.example
+!**/.env.*.example
+
+# Build output
+dist/
+coverage/
+.vite/
+
+# Prisma generated files
+/generated/prisma/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local databases and backups
+*.dump
+*.backup
+*.bak
+*.sql.gz
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# OS files
+.DS_Store
+Thumbs.db
